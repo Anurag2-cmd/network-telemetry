@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Telemetry Dashboard — 6 Protocols</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+        h1 { font-size: 1.4rem; margin-bottom: 4px; }
+        .sub { color: #64748b; font-size: 0.8rem; margin-bottom: 16px; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .tab { background: #1e293b; border: 1px solid #334155; color: #cbd5e1;
+               padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
+        .tab:hover { background: #273449; }
+        .tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .tab .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                    background: #475569; margin-right: 6px; }
+        .tab .dot.live { background: #4ade80; }
+        .tab .dot.dead { background: #f87171; }
+        .pane { display: none; }
+        .pane.active { display: block; }
+        .pane-head { display: flex; justify-content: space-between; align-items: center;
+                     margin-bottom: 12px; }
+        .badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; }
+        .badge.live { background: #14532d; color: #4ade80; }
+        .badge.dead { background: #450a0a; color: #f87171; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .chart-box { background: #1e293b; border-radius: 10px; padding: 14px; }
+        .chart-box.full { grid-column: 1 / -1; }
+        .chart-box h2 { font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px; }
+        canvas { max-height: 210px; }
+        .empty { color: #64748b; font-size: 0.8rem; padding: 30px 0; text-align: center; }
+        .tbl-box { background: #1e293b; border-radius: 10px; padding: 14px; margin-top: 12px; }
+        .tbl-box h2 { font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px; }
+        .tbl-wrap { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #334155;
+                 white-space: nowrap; }
+        th { color: #94a3b8; font-weight: 500; position: sticky; top: 0; background: #1e293b; }
+        .muted { color: #64748b; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>Network Telemetry — Unified Dashboard</h1>
+    <div class="sub">INT · sFlow · NetFlow · IPFIX · SNMP · gNMI — live from db/telemetry.db</div>
+
+    <div class="tabs" id="tabs"></div>
+
+    <div id="panes">
+        <div class="pane" id="pane-int">
+            <div class="pane-head"><h2>INT — In-band Network Telemetry</h2><span class="badge dead" id="badge-int">offline</span></div>
+            <div class="grid">
+                <div class="chart-box"><h2>Per-hop latency (µs) by switch</h2><canvas id="ch-int-0"></canvas><div class="empty" id="em-int-0">no data yet</div></div>
+                <div class="chart-box"><h2>Queue occupancy (enq_qdepth)</h2><canvas id="ch-int-1"></canvas><div class="empty" id="em-int-1">no data yet</div></div>
+                <div class="chart-box"><h2>Jitter (µs)</h2><canvas id="ch-int-2"></canvas><div class="empty" id="em-int-2">no data yet</div></div>
+                <div class="chart-box"><h2>Per-hop latency vs queue</h2><canvas id="ch-int-3"></canvas><div class="empty" id="em-int-3">no data yet</div></div>
+            </div>
+            <div class="tbl-box"><h2>Latest INT hop records</h2><div class="tbl-wrap" id="tbl-int"></div></div>
+        </div>
+
+        <div class="pane" id="pane-sflow">
+            <div class="pane-head"><h2>sFlow — sampled flow records (v5)</h2><span class="badge dead" id="badge-sflow">offline</span></div>
+            <div class="grid">
+                <div class="chart-box"><h2>Bandwidth in / out (Mb/s)</h2><canvas id="ch-sflow-0"></canvas><div class="empty" id="em-sflow-0">no data yet</div></div>
+                <div class="chart-box"><h2>Sampled traffic (bytes) by proto</h2><canvas id="ch-sflow-1"></canvas><div class="empty" id="em-sflow-1">no data yet</div></div>
+                <div class="chart-box"><h2>Sampled bytes per packet</h2><canvas id="ch-sflow-2"></canvas><div class="empty" id="em-sflow-2">no data yet</div></div>
+                <div class="chart-box"><h2>Top source IPs by bytes</h2><canvas id="ch-sflow-3"></canvas><div class="empty" id="em-sflow-3">no data yet</div></div>
+            </div>
+            <div class="tbl-box"><h2>Latest sFlow samples</h2><div class="tbl-wrap" id="tbl-sflow"></div></div>
+        </div>
+
+        <div class="pane" id="pane-netflow">
+            <div class="pane-head"><h2>NetFlow v5 — flow records</h2><span class="badge dead" id="badge-netflow">offline</span></div>
+            <div class="grid">
+                <div class="chart-box"><h2>Flows per minute</h2><canvas id="ch-netflow-0"></canvas><div class="empty" id="em-netflow-0">no data yet</div></div>
+                <div class="chart-box"><h2>Top flows by bytes</h2><canvas id="ch-netflow-1"></canvas><div class="empty" id="em-netflow-1">no data yet</div></div>
+            </div>
+            <div class="tbl-box"><h2>Latest NetFlow records</h2><div class="tbl-wrap" id="tbl-netflow"></div></div>
+        </div>
+
+        <div class="pane" id="pane-ipfix">
+            <div class="pane-head"><h2>IPFIX — flow records</h2><span class="badge dead" id="badge-ipfix">offline</span></div>
+            <div class="grid">
+                <div class="chart-box"><h2>Flows per minute</h2><canvas id="ch-ipfix-0"></canvas><div class="empty" id="em-ipfix-0">no data yet</div></div>
+                <div class="chart-box"><h2>Top flows by bytes</h2><canvas id="ch-ipfix-1"></canvas><div class="empty" id="em-ipfix-1">no data yet</div></div>
+            </div>
+            <div class="tbl-box"><h2>Latest IPFIX records</h2><div class="tbl-wrap" id="tbl-ipfix"></div></div>
+        </div>
+
+        <div class="pane" id="pane-snmp">
+            <div class="pane-head"><h2>SNMP — device poller</h2><span class="badge dead" id="badge-snmp">offline</span></div>
+            <div class="grid">
+                <div class="chart-box"><h2>CPU load / memory (%)</h2><canvas id="ch-snmp-0"></canvas><div class="empty" id="em-snmp-0">no data yet</div></div>
+                <div class="chart-box"><h2>Bandwidth in / out (Mb/s)</h2><canvas id="ch-snmp-1"></canvas><div class="empty" id="em-snmp-1">no data yet</div></div>
+                <div class="chart-box"><h2>Interface octets</h2><canvas id="ch-snmp-2"></canvas><div class="empty" id="em-snmp-2">no data yet</div></div>
+                <div class="chart-box"><h2>Uptime (s)</h2><canvas id="ch-snmp-3"></canvas><div class="empty" id="em-snmp-3">no data yet</div></div>
+            </div>
+            <div class="tbl-box"><h2>Latest SNMP polls</h2><div class="tbl-wrap" id="tbl-snmp"></div></div>
+        </div>
+
+        <div class="pane" id="pane-gnmi">
+            <div class="pane-head"><h2>gNMI — OpenConfig interface counters</h2><span class="badge dead" id="badge-gnmi">offline</span></div>
+            <div class="grid">
+                <div class="chart-box"><h2>Interface counters in/out (octets)</h2><canvas id="ch-gnmi-0"></canvas><div class="empty" id="em-gnmi-0">no data yet</div></div>
+                <div class="chart-box"><h2>Per-interface in-octets</h2><canvas id="ch-gnmi-1"></canvas><div class="empty" id="em-gnmi-1">no data yet</div></div>
+            </div>
+            <div class="tbl-box"><h2>Latest gNMI values</h2><div class="tbl-wrap" id="tbl-gnmi"></div></div>
+        </div>
+    </div>
+
+    <script>
+        const TABS = ['int', 'sflow', 'netflow', 'ipfix', 'snmp', 'gnmi'];
+        const TITLES = {
+            int: 'INT', sflow: 'sFlow', netflow: 'NetFlow',
+            ipfix: 'IPFIX', snmp: 'SNMP', gnmi: 'gNMI',
+        };
+        const PALETTE = ['#38bdf8', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb923c'];
+
+        let activeTab = 'int';
+        const chartCache = {};
+        const poll = {};
+
+        function fmtTime(ts) {
+            if (!ts) return '—';
+            return new Date(ts * 1000).toLocaleTimeString();
+        }
+
+        function initTabs() {
+            const wrap = document.getElementById('tabs');
+            wrap.innerHTML = '';
+            for (const t of TABS) {
+                const el = document.createElement('div');
+                el.className = 'tab' + (t === activeTab ? ' active' : '');
+                el.id = 'tab-' + t;
+                el.innerHTML = '<span class="dot" id="dot-' + t + '"></span>' + TITLES[t];
+                el.onclick = () => switchTab(t);
+                wrap.appendChild(el);
+            }
+        }
+
+        function switchTab(t) {
+            activeTab = t;
+            document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
+            document.getElementById('tab-' + t).classList.add('active');
+            document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+            document.getElementById('pane-' + t).classList.add('active');
+            refreshStatus();
+            refreshSource(t);
+        }
+
+        function toObjects(data) {
+            if (!data || !data.columns || !data.rows) return [];
+            return data.rows.map(r => {
+                const o = {};
+                data.columns.forEach((c, i) => o[c] = r[i]);
+                return o;
+            });
+        }
+
+        function seriesData(rows, yKey, groupKey, groupValue) {
+            const pts = [];
+            for (const r of rows) {
+                if (groupKey && r[groupKey] !== groupValue) continue;
+                const y = r[yKey];
+                if (y === null || y === undefined) continue;
+                pts.push({ x: r.ts * 1000, y });
+            }
+            return pts;
+        }
+
+        function drawChart(key, cfg, rows) {
+            const canvas = document.getElementById('ch-' + key);
+            const empty = document.getElementById('em-' + key);
+            const datasets = [];
+            if (cfg.mode === 'series') {
+                cfg.keys.forEach((k, i) => {
+                    datasets.push({
+                        label: (cfg.labels && cfg.labels[i]) || k.replace(/_/g, ' '),
+                        data: seriesData(rows, k),
+                        borderColor: cfg.colors[i % cfg.colors.length],
+                        borderWidth: 1.5, tension: 0.3, pointRadius: 0, fill: false,
+                    });
+                });
+            } else if (cfg.mode === 'group') {
+                const groups = [...new Set(rows.map(r => r[cfg.groupKey]).filter(v => v !== null && v !== undefined))];
+                groups.forEach((g, i) => {
+                    datasets.push({
+                        label: cfg.labelPrefix + ' ' + g,
+                        data: seriesData(rows, cfg.valueKey, cfg.groupKey, g),
+                        borderColor: cfg.colors[i % cfg.colors.length],
+                        borderWidth: 1.5, tension: 0.3, pointRadius: 0, fill: false,
+                    });
+                });
+            } else if (cfg.mode === 'gnmiIface') {
+                const groups = [...new Set(rows.map(r => {
+                    const m = (r.path || '').match(/name=([^/]+)/);
+                    return m ? m[1] : '?';
+                }))];
+                groups.forEach((g, i) => {
+                    datasets.push({
+                        label: 'iface ' + g,
+                        data: rows.filter(r => (r.path || '').indexOf('name=' + g + ']') !== -1)
+                            .map(r => ({ x: r.ts * 1000, y: r.int_value })),
+                        borderColor: cfg.colors[i % cfg.colors.length],
+                        borderWidth: 1.5, tension: 0.3, pointRadius: 0, fill: false,
+                    });
+                });
+            } else if (cfg.mode === 'flowRate') {
+                const bins = {};
+                for (const r of rows) {
+                    const m = Math.floor(r.ts / 60) * 60;
+                    bins[m] = (bins[m] || 0) + 1;
+                }
+                const times = Object.keys(bins).sort();
+                datasets.push({
+                    label: 'flows/min',
+                    data: times.map(t => ({ x: t * 1000, y: bins[t] })),
+                    borderColor: cfg.colors[0], borderWidth: 1.5,
+                    tension: 0.3, pointRadius: 0, fill: false,
+                });
+            } else if (cfg.mode === 'topFlow') {
+                const sums = {};
+                for (const r of rows) {
+                    const k = r.src_ip + ' → ' + r.dst_ip;
+                    sums[k] = (sums[k] || 0) + (r.bytes || 0);
+                }
+                const top = Object.entries(sums).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                canvas.parentElement.style.maxHeight = '300px';
+                datasets.push({
+                    label: 'bytes',
+                    data: top.map(([k, v]) => ({ x: v, y: k })),
+                    backgroundColor: top.map((_, i) => PALETTE[i % PALETTE.length] + '88'),
+                    borderWidth: 0,
+                });
+                const old = Chart.getChart(canvas);
+                if (old) old.destroy();
+                new Chart(canvas, {
+                    type: 'bar',
+                    data: { datasets },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                        },
+                    },
+                });
+                empty.style.display = datasets[0].data.length ? 'none' : 'block';
+                return;
+            }
+            const hasData = datasets.some(d => d.data.length);
+            empty.style.display = hasData ? 'none' : 'block';
+            if (!hasData) return;
+            const old = Chart.getChart(canvas);
+            if (old) old.destroy();
+            new Chart(canvas, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 10, font: { size: 10 } } } },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            ticks: {
+                                color: '#64748b', maxTicksLimit: 8,
+                                callback: v => new Date(v).toLocaleTimeString(),
+                            },
+                            grid: { color: '#334155' },
+                        },
+                        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
+                    },
+                },
+            });
+        }
+
+        function buildTable(cols, rows) {
+            if (!rows.length) return '<div class="empty">no data yet</div>';
+            const headers = cols.map(c => '<th>' + c.replace(/_/g, ' ') + '</th>').join('');
+            const body = rows.map(r => {
+                return '<tr>' + cols.map(c => {
+                    let v = r[c];
+                    if (c === 'ts') v = fmtTime(v);
+                    if (typeof v === 'number' && !Number.isInteger(v)) v = v.toFixed(2);
+                    if (v === null || v === undefined) v = '—';
+                    return '<td>' + String(v).substring(0, 40) + '</td>';
+                }).join('') + '</tr>';
+            }).join('');
+            return '<table><thead><tr>' + headers + '</tr></thead><tbody>' + body + '</tbody></table>';
+        }
+
+        const CFG = {
+            int: {
+                charts: [
+                    { mode: 'group', groupKey: 'switch_id', valueKey: 'hop_latency_us',
+                      labelPrefix: 'switch', colors: ['#38bdf8', '#a78bfa', '#f472b6', '#34d399'] },
+                    { mode: 'series', keys: ['queue_occupancy'], labels: ['enq_qdepth'], colors: ['#fbbf24'] },
+                    { mode: 'series', keys: ['jitter_us'], labels: ['jitter'], colors: ['#fb923c'] },
+                    { mode: 'series', keys: ['hop_latency_us', 'queue_occupancy'],
+                      labels: ['latency', 'queue'], colors: ['#38bdf8', '#fbbf24'] },
+                ],
+                cols: ['ts', 'flow', 'switch_id', 'hop_latency_us', 'jitter_us', 'queue_occupancy'],
+            },
+            sflow: {
+                charts: [
+                    { mode: 'series', keys: ['bandwidth_in_mbps', 'bandwidth_out_mbps'],
+                      labels: ['bw in', 'bw out'], colors: ['#4ade80', '#fb923c'] },
+                    { mode: 'group', groupKey: 'proto', valueKey: 'bytes_sampled',
+                      labelPrefix: 'proto', colors: ['#38bdf8', '#a78bfa', '#f472b6'] },
+                    { mode: 'series', keys: ['bytes_sampled'], labels: ['bytes'], colors: ['#38bdf8'] },
+                    { mode: 'series', keys: ['if_in_octets', 'if_out_octets'],
+                      labels: ['if in', 'if out'], colors: ['#4ade80', '#fbbf24'] },
+                ],
+                cols: ['ts', 'agent', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 'proto', 'bytes_sampled', 'bandwidth_in_mbps', 'bandwidth_out_mbps'],
+            },
+            netflow: {
+                charts: [
+                    { mode: 'flowRate', colors: ['#a78bfa'] },
+                    { mode: 'topFlow', colors: ['#38bdf8'] },
+                ],
+                cols: ['ts', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 'proto', 'packets', 'bytes', 'last_ts'],
+            },
+            ipfix: {
+                charts: [
+                    { mode: 'flowRate', colors: ['#34d399'] },
+                    { mode: 'topFlow', colors: ['#fbbf24'] },
+                ],
+                cols: ['ts', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 'proto', 'packets', 'bytes', 'last_ts'],
+            },
+            snmp: {
+                charts: [
+                    { mode: 'series', keys: ['cpu_load', 'mem_used_pct'],
+                      labels: ['cpu %', 'mem %'], colors: ['#fbbf24', '#34d399'] },
+                    { mode: 'series', keys: ['bw_in_mbps', 'bw_out_mbps'],
+                      labels: ['bw in', 'bw out'], colors: ['#4ade80', '#fb923c'] },
+                    { mode: 'series', keys: ['if_octets_in', 'if_octets_out'],
+                      labels: ['octets in', 'octets out'], colors: ['#38bdf8', '#a78bfa'] },
+                    { mode: 'series', keys: ['uptime'], labels: ['uptime'], colors: ['#f472b6'] },
+                ],
+                cols: ['ts', 'device', 'cpu_load', 'mem_used_pct', 'bw_in_mbps', 'bw_out_mbps', 'uptime'],
+            },
+            gnmi: {
+                cols: ['ts', 'path', 'key', 'value', 'int_value'],
+            },
+        };
+
+        function refreshSource(t) {
+            fetch('/api/' + t)
+                .then(r => r.json())
+                .then(data => {
+                    const rows = toObjects(data);
+                    if (t === 'gnmi') {
+                        rows.sort((a, b) => a.ts - b.ts);
+                        const chartRows = rows.filter(r => r.int_value !== null);
+                        drawChart(t + '-0', { mode: 'group', groupKey: 'key',
+                            valueKey: 'int_value', labelPrefix: '', colors: ['#4ade80', '#fb923c', '#38bdf8', '#a78bfa'] },
+                            chartRows);
+                        const inRows = chartRows.filter(r => r.key === 'in-octets');
+                        drawChart(t + '-1', { mode: 'gnmiIface', colors: PALETTE }, inRows);
+                        if (!inRows.length) {
+                            document.getElementById('em-' + t + '-1').style.display = 'block';
+                        }
+                        const latest = {};
+                        rows.forEach(r => latest[r.path || r.key] = r);
+                        document.getElementById('tbl-' + t).innerHTML =
+                            buildTable(CFG[t].cols, Object.values(latest).reverse().slice(0, 15));
+                        return;
+                    }
+                    const cfg = CFG[t];
+                    cfg.charts.forEach((c, i) => drawChart(t + '-' + i, c, rows));
+                    const last = rows.slice(-15).reverse();
+                    document.getElementById('tbl-' + t).innerHTML = buildTable(cfg.cols, last);
+                })
+                .catch(() => {
+                    document.querySelectorAll('#pane-' + t + ' .empty').forEach(e => e.style.display = 'block');
+                });
+        }
+
+        function refreshStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(st => {
+                    for (const t of TABS) {
+                        const s = st[t] || {};
+                        const dot = document.getElementById('dot-' + t);
+                        const badge = document.getElementById('badge-' + t);
+                        dot.className = 'dot ' + (s.live ? 'live' : 'dead');
+                        badge.className = 'badge ' + (s.live ? 'live' : 'dead');
+                        badge.textContent = s.live
+                            ? ('live · ' + (s.rows_60s || 0) + ' rows/60s · ' + fmtTime(s.last_ts))
+                            : ('offline · last ' + fmtTime(s.last_ts));
+                    }
+                })
+                .catch(() => {});
+        }
+
+        initTabs();
+        refreshStatus();
+        refreshSource(activeTab);
+        setInterval(refreshStatus, 5000);
+        setInterval(() => refreshSource(activeTab), 5000);
+    </script>
+</body>
+</html>

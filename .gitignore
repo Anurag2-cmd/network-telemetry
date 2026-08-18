@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Generated P4 artifacts
+p4/int.json
+
+# Temp / scratch files
+scripts/wsl-tmp/
+
+# Environment
+.env
+.venv/
+venv/
