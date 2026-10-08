@@ -139,7 +139,7 @@ switch_id=2 lat_us=22848.0 qdepth=44
 switch_id=2 lat_us=23350.0 qdepth=45
 ```
 
-enq_qdepth jumped to 43–45 during the burst, and only ~130 of the 1000
+enq_qdepth jumped to 43–45 during the burst, and only ~80 of the 1000
 packets got through — the rest were dropped. This is exactly the gap
 modern streaming telemetry was invented to fill.
 
@@ -291,7 +291,7 @@ transient network events.**
 | scapy | Packet sniffing and parsing in the INT receiver; synthetic packets in selftests |
 | pysnmp | SNMPv2c polling of the agent (CPU, memory, interface octets) |
 | pygnmi + gRPC | The emulated gNMI service and its pull client |
-| Flask + Chart.js | Dashboard backend and frontend charts |
+| Flask + Chart.js | Dashboard backend and fnrontend charts |
 | SQLite (WAL) | Single shared database `db/telemetry.db` with six tables |
 | tcpdump, iperf3 | Packet capture for the softflowd FIFO pipeline; traffic generation |
 | Windows 11 + WSL2 (Ubuntu) | Host environment: everything runs inside WSL, dashboard opens in the Windows browser |

@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Network Telemetry Dashboard — 6 Protocols</title>
+    <script>
+        var q = new URLSearchParams(location.search);
+        if (q.get('theme') === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+        if (q.get('clean') === '1') {
+            document.documentElement.setAttribute('data-clean', '1');
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,6 +50,22 @@
         th { color: #94a3b8; font-weight: 500; position: sticky; top: 0; background: #1e293b; }
         .muted { color: #64748b; }
         @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        html[data-theme=light] body { background: #f8fafc; color: #0f172a; }
+        html[data-theme=light] .tab { background: #fff; border-color: #cbd5e1; color: #334155; }
+        html[data-theme=light] .tab:hover { background: #f1f5f9; }
+        html[data-theme=light] .tab .dot { background: #94a3b8; }
+        html[data-theme=light] .chart-box, html[data-theme=light] .tbl-box {
+            background: #fff; border: 1px solid #e2e8f0;
+        }
+        html[data-theme=light] .chart-box h2, html[data-theme=light] .tbl-box h2 { color: #475569; }
+        html[data-theme=light] th { color: #475569; background: #fff; border-bottom-color: #e2e8f0; }
+        html[data-theme=light] td { border-bottom-color: #f1f5f9; }
+        html[data-theme=light] .badge.live { background: #dcfce7; color: #166534; }
+        html[data-theme=light] .badge.dead { background: #fee2e2; color: #991b1b; }
+        html[data-theme=light] .tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+        html[data-theme=light] .tab .dot.live { background: #4ade80; }
+        html[data-theme=light] .tab .dot.dead { background: #f87171; }
+        html[data-clean=1] .tbl-box { display: none; }
     </style>
 </head>
 <body>
@@ -118,6 +143,12 @@
             ipfix: 'IPFIX', snmp: 'SNMP', gnmi: 'gNMI',
         };
         const PALETTE = ['#38bdf8', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb923c'];
+        const LIGHT = document.documentElement.getAttribute('data-theme') === 'light';
+        const THEME = {
+            tick: LIGHT ? '#64748b' : '#64748b',
+            grid: LIGHT ? '#e2e8f0' : '#334155',
+            legend: LIGHT ? '#475569' : '#94a3b8',
+        };
 
         let activeTab = 'int';
         const chartCache = {};
@@ -160,13 +191,26 @@
             });
         }
 
-        function seriesData(rows, yKey, groupKey, groupValue) {
+        function seriesData(rows, yKey, groupKey, groupValue, xFn) {
             const pts = [];
             for (const r of rows) {
                 if (groupKey && r[groupKey] !== groupValue) continue;
                 const y = r[yKey];
                 if (y === null || y === undefined) continue;
-                pts.push({ x: r.ts * 1000, y });
+                pts.push({ x: xFn ? xFn(r) : r.ts * 1000, y });
+            }
+            if (xFn) {
+                // break the line where the data has a real time gap (e.g.
+                // between the background flow and the microburst) so the
+                // chart does not draw a misleading straight ramp across it
+                const out = [];
+                for (let i = 0; i < pts.length; i++) {
+                    out.push(pts[i]);
+                    if (i + 1 < pts.length && pts[i + 1].x - pts[i].x > 1500) {
+                        out.push({ x: (pts[i].x + pts[i + 1].x) / 2, y: null });
+                    }
+                }
+                return out;
             }
             return pts;
         }
@@ -174,22 +218,28 @@
         function drawChart(key, cfg, rows) {
             const canvas = document.getElementById('ch-' + key);
             const empty = document.getElementById('em-' + key);
+            if (cfg.where) {
+                rows = rows.filter(r => Object.keys(cfg.where).every(k => r[k] === cfg.where[k]));
+            }
+            const xFn = cfg.xRel ? (r => (r.ingress_ts - (cfg.x0 || 0)) / 1000) : null;
             const datasets = [];
             if (cfg.mode === 'series') {
                 cfg.keys.forEach((k, i) => {
-                    datasets.push({
+                    const ds = {
                         label: (cfg.labels && cfg.labels[i]) || k.replace(/_/g, ' '),
-                        data: seriesData(rows, k),
+                        data: seriesData(rows, k, null, null, xFn),
                         borderColor: cfg.colors[i % cfg.colors.length],
                         borderWidth: 1.5, tension: 0.3, pointRadius: 0, fill: false,
-                    });
+                    };
+                    if (cfg.dualY && i > 0) ds.yAxisID = 'y1';
+                    datasets.push(ds);
                 });
             } else if (cfg.mode === 'group') {
                 const groups = [...new Set(rows.map(r => r[cfg.groupKey]).filter(v => v !== null && v !== undefined))];
                 groups.forEach((g, i) => {
                     datasets.push({
                         label: cfg.labelPrefix + ' ' + g,
-                        data: seriesData(rows, cfg.valueKey, cfg.groupKey, g),
+                        data: seriesData(rows, cfg.valueKey, cfg.groupKey, g, xFn),
                         borderColor: cfg.colors[i % cfg.colors.length],
                         borderWidth: 1.5, tension: 0.3, pointRadius: 0, fill: false,
                     });
@@ -244,8 +294,8 @@
                         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         plugins: { legend: { display: false } },
                         scales: {
-                            x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
-                            y: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                            x: { ticks: { color: THEME.tick }, grid: { color: THEME.grid } },
+                            y: { ticks: { color: THEME.legend }, grid: { display: false } },
                         },
                     },
                 });
@@ -257,24 +307,32 @@
             if (!hasData) return;
             const old = Chart.getChart(canvas);
             if (old) old.destroy();
+            const scales = {
+                x: {
+                    type: 'linear',
+                    ticks: {
+                        color: THEME.tick, maxTicksLimit: 8,
+                        callback: v => cfg.xRel
+                            ? (v / 1000).toFixed(1) + 's'
+                            : new Date(v).toLocaleTimeString(),
+                    },
+                    grid: { color: THEME.grid },
+                },
+                y: { ticks: { color: cfg.dualY ? cfg.colors[0] : THEME.tick },
+                     grid: { color: THEME.grid } },
+            };
+            if (cfg.dualY) {
+                scales.y1 = { position: 'right',
+                    ticks: { color: cfg.colors[1] }, grid: { display: false } };
+            }
             new Chart(canvas, {
                 type: 'line',
                 data: { datasets },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     animation: false,
-                    plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 10, font: { size: 10 } } } },
-                    scales: {
-                        x: {
-                            type: 'linear',
-                            ticks: {
-                                color: '#64748b', maxTicksLimit: 8,
-                                callback: v => new Date(v).toLocaleTimeString(),
-                            },
-                            grid: { color: '#334155' },
-                        },
-                        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
-                    },
+                    plugins: { legend: { labels: { color: THEME.legend, boxWidth: 10, font: { size: 10 } } } },
+                    scales,
                 },
             });
         }
@@ -298,11 +356,14 @@
             int: {
                 charts: [
                     { mode: 'group', groupKey: 'switch_id', valueKey: 'hop_latency_us',
-                      labelPrefix: 'switch', colors: ['#38bdf8', '#a78bfa', '#f472b6', '#34d399'] },
-                    { mode: 'series', keys: ['queue_occupancy'], labels: ['enq_qdepth'], colors: ['#fbbf24'] },
-                    { mode: 'series', keys: ['jitter_us'], labels: ['jitter'], colors: ['#fb923c'] },
+                      labelPrefix: 'switch', colors: ['#94a3b8', '#38bdf8'], xRel: true },
+                    { mode: 'group', groupKey: 'switch_id', valueKey: 'queue_occupancy',
+                      labelPrefix: 'switch', colors: ['#94a3b8', '#fbbf24'], xRel: true },
+                    { mode: 'group', groupKey: 'switch_id', valueKey: 'jitter_us',
+                      labelPrefix: 'switch', colors: ['#94a3b8', '#fb923c'], xRel: true },
                     { mode: 'series', keys: ['hop_latency_us', 'queue_occupancy'],
-                      labels: ['latency', 'queue'], colors: ['#38bdf8', '#fbbf24'] },
+                      labels: ['latency', 'queue'], colors: ['#38bdf8', '#fbbf24'],
+                      where: { switch_id: 2 }, xRel: true, dualY: true },
                 ],
                 cols: ['ts', 'flow', 'switch_id', 'hop_latency_us', 'jitter_us', 'queue_occupancy'],
             },
@@ -354,6 +415,7 @@
                 .then(r => r.json())
                 .then(data => {
                     const rows = toObjects(data);
+                    rows.sort((a, b) => (a.ts || 0) - (b.ts || 0));
                     if (t === 'gnmi') {
                         rows.sort((a, b) => a.ts - b.ts);
                         const chartRows = rows.filter(r => r.int_value !== null);
@@ -372,6 +434,10 @@
                         return;
                     }
                     const cfg = CFG[t];
+                    if (t === 'int' && rows.length) {
+                        const x0 = Math.min.apply(null, rows.map(r => r.ingress_ts).filter(v => v !== null && v !== undefined));
+                        cfg.charts.forEach(c => { c.x0 = x0; });
+                    }
                     cfg.charts.forEach((c, i) => drawChart(t + '-' + i, c, rows));
                     const last = rows.slice(-15).reverse();
                     document.getElementById('tbl-' + t).innerHTML = buildTable(cfg.cols, last);
@@ -400,8 +466,7 @@
         }
 
         initTabs();
-        refreshStatus();
-        refreshSource(activeTab);
+        switchTab(activeTab);
         setInterval(refreshStatus, 5000);
         setInterval(() => refreshSource(activeTab), 5000);
     </script>

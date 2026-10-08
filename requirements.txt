@@ -1,2 +1,5 @@
 flask
-psutil
+scapy
+pysnmp
+pygnmi
+grpcio

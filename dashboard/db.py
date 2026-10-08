@@ -22,7 +22,7 @@ SOURCES = {
     "gnmi": "gnmi_stats",
 }
 
-LIVE_WINDOW_S = 60
+LIVE_WINDOW_S = int(os.environ.get("LIVE_WINDOW_S", "86400"))
 
 
 def get_conn():
@@ -44,9 +44,12 @@ def last_rows(table, n=200):
         if not table_exists(conn, table):
             return {"columns": [], "rows": []}
         columns = [c[1] for c in conn.execute("PRAGMA table_info(%s)" % table)]
+        # expose rowid as __rid: newer SQLite (3.50+) rejects rowid in the
+        # outer ORDER BY of an unaliased subquery (older versions allowed it)
         rows = conn.execute(
-            "SELECT * FROM (SELECT * FROM %s ORDER BY ts DESC, rowid DESC "
-            "LIMIT ?) ORDER BY ts ASC, rowid ASC" % table, (n,)).fetchall()
+            "SELECT * FROM (SELECT *, rowid AS __rid FROM %s "
+            "ORDER BY ts DESC, rowid DESC LIMIT ?) "
+            "ORDER BY ts ASC, __rid ASC" % table, (n,)).fetchall()
         conn.close()
         return {"columns": columns, "rows": [list(r) for r in rows]}
     except Exception:

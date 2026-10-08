@@ -9,8 +9,19 @@ __pycache__/
 # Generated P4 artifacts
 p4/int.json
 
-# Temp / scratch files
-scripts/wsl-tmp/
+# Temp / scratch files (keep e2e-gnmi.sh — required by run_all.sh step 4)
+scripts/wsl-tmp/*
+!scripts/wsl-tmp/e2e-gnmi.sh
+
+# Generated paper artifacts
+paper/~$*
+paper/figs/*_old.png
+
+# Generated presentations
+*.pptx
+
+# Unrelated tooling data
+.freebuff/
 
 # Environment
 .env

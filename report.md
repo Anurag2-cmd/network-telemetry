@@ -63,7 +63,7 @@ switch_id=2 lat_us=23350.0 qdepth=45
 ```
 
 **enq_qdepth jumped to 43-45** during the burst (the tail of the burst is
-drained after; only ~130 of the 1000 packets got through — the rest were
+drained after; only ~80 of the 1000 packets got through — the rest were
 dropped). SNMP, polling every 5 s, would see only the final counter values
 and never the queue itself. The INT tab of the dashboard shows the spike
 live; the SNMP tab shows only slow counter deltas. **This is the

@@ -13,6 +13,11 @@ dashboard opens in a normal browser.
 **Full documentation (what it does, architecture, DB schema, how to use,
 verification, troubleshooting):** see [`DOCUMENTATION.md`](DOCUMENTATION.md).
 
+**New machine, just want it running:** see [`QUICKSTART.md`](QUICKSTART.md) —
+preflight checks, the one-command run, verification, stopping and
+troubleshooting. [`RUN_LOG.md`](RUN_LOG.md) logs a verified end-to-end run
+(results, timings, and two known dashboard bugs).
+
 ## Assignment mapping
 
 | Objective / complaint being answered | Where in this project |
