@@ -23,6 +23,11 @@ paper/figs/*_old.png
 # Unrelated tooling data
 .freebuff/
 
+# Personal docs (local only, not in repo)
+report.md
+synopsis.md
+RUN_LOG.md
+
 # Environment
 .env
 .venv/
