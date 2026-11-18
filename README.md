@@ -30,27 +30,9 @@ troubleshooting. [`RUN_LOG.md`](RUN_LOG.md) logs a verified end-to-end run
 
 ## Architecture
 
-```
-                         +-------- emulated network (Mininet, WSL) -------+
-                         |                                              |
-   INT path              |  h1 -- s1 (P4) -- s2 (P4) -- h2              |
-   UDP/4000 + stack      |                                          h3  |
-   (1 entry per switch)  |                                              |
-                         +----------------------------------------------+
-                        (every path below this line hits the same DB)
+![Testbed architecture: six protocol paths — SNMP, sFlow, NetFlow, IPFIX, gNMI and INT — converge on one SQLite database and one dashboard](assets/architecture.png)
 
- INT:   h1 --int_sender--> P4 switches add metadata --> int_receiver on h2
-                                                        |  shot
- sFlow: OVS s1 samples every pkt --> 127.0.0.1:6343 --> sflow_collector
- NetFlow: softflowd(h1, v5) --> h4:9995 ----------------> netflow_collector
- IPFIX:  softflowd(h3, v10) --> h4:9996 ----------------> ipfix_collector
- SNMP:   snmpd(h4, agent) <-- 5s poll <-- snmp_poller (root netns)
- gNMI:   gnmi_agent (emulated gNMI svc over P4Runtime counters) <-- 2s
-           <-- gnmi_client (pygnmi Get, gRPC)
-
-              all -> db/telemetry.db (SQLite, WAL) -> dashboard/app.py
-                                                        -> http://localhost:5000
-```
+*Every path terminates in the same `db/telemetry.db`, which is what makes cross-protocol comparison possible.*
 
 ## Prerequisites
 
