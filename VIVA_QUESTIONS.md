@@ -113,7 +113,7 @@ Key: SNMP's granularity = polling period. A 40–50ms burst can fall between pol
 *A:* X-axis = time relative to first INT packet (seconds). Left Y = `hop_latency_us` (blue), right Y = `queue_occupancy` (orange), filtered to **switch_id=2**. **When orange rises, blue rises. When orange drops, blue drops.** They track almost together. That means **queue buildup caused the extra hop latency** — direct causal link. This is the strongest visual proof for the paper.
 
 **Q23. What are the "live" badge numbers telling us?**
-*A:* `live · N rows/60s · HH:MM:SS` means that table received N new rows in the last 60 seconds and last row was at that timestamp. If badge goes **dead/offline** → collector stopped writing or DB stale. During the run, INT/sFlow will usually show higher rows/60s than NetFlow/IPFIX/SNMP (matching granularity).
+*A:* `live · N rows/24h · HH:MM:SS` means that table received N new rows inside the badge's window and the last row was at that timestamp. The window is `LIVE_WINDOW_S` in `dashboard/db.py` — **24 h by default**, settable to 60 s for strict liveness — and the badge prints whichever window it used. If the badge goes **dead/offline** → collector stopped writing or DB stale. During the run, INT/sFlow will usually show higher rows/window than NetFlow/IPFIX/SNMP (matching granularity).
 
 **Q24. What are we looking for overall across all 6 tabs?**
 *A:* **Correlation of the same event.**
@@ -183,7 +183,7 @@ You're proving: **same microburst → 6 different lenses. INT sees deepest detai
 *A:* Fixed 5-tuple key: **src_ip, dst_ip, src_port, dst_port, proto** (plus interface, ToS, nexthop). v9/IPFIX are template-based (extensible). sFlow is packet-sample based.
 
 **Q37. Why does SNMP sometimes show 0 rows around burst?**
-*A:* Polling missed the interval. If collector polls every 5s and burst is at 12:00:00.041 (41ms long), nearest polls might be 11:59:55 and 12:00:00 — depending on alignment, the delta may not reflect the sharp spike, or the DB just has polls around it with small delta. Also "rows/60s" for SNMP stays low by design.
+*A:* Polling missed the interval. If collector polls every 5s and burst is at 12:00:00.041 (41ms long), nearest polls might be 11:59:55 and 12:00:00 — depending on alignment, the delta may not reflect the sharp spike, or the DB just has polls around it with small delta. Also "rows/<window>" for SNMP stays low by design.
 
 **Q38. Why is the dashboard X-axis "relative time" for INT?**
 *A:* To align hop records from s1 and s2 to the **same burst start** (`ingress_ts - x0`). Makes the latency/queue curves line up clearly (easier to see s2 peak). sFlow/NetFlow use absolute wall-clock time (binned). INT needs per-packet alignment.

@@ -94,7 +94,7 @@ browser at `http://localhost:5000`.
 | Telemetry-enabled devices | Produce the data | P4 `simple_switch` (INT + port counters), OVS `s1` (sFlow exporter), `softflowd` agents on h1/h3 (NetFlow v5 / IPFIX v10), `snmpd` on h4 (SNMP agent), `simple_switch_grpc` + `gnmi_agent` (gNMI service) |
 | Collectors | Receive, decode, store | Python UDP collectors (ports 6343/9995/9996), SNMP poller, gNMI pull client — all writing `db/telemetry.db` |
 | Analytics | Turn raw data into insight | Per-hop latency/jitter & queue occupancy (INT), bandwidth from counter deltas (sFlow/SNMP), flow records (NetFlow/IPFIX), interface counter growth (gNMI) |
-| Visualization | Present it live | Flask `dashboard/app.py` + Chart.js: one tab per protocol, `/api/<source>` last-200 rows, live badges (60 s window), 5 s auto-refresh |
+| Visualization | Present it live | Flask `dashboard/app.py` + Chart.js: one tab per protocol, `/api/<source>` last-200 rows, live badges (`LIVE_WINDOW_S` window, default 24 h), 5 s auto-refresh |
 
 ### Data flow
 
@@ -478,11 +478,13 @@ relevant series with Chart.js:
 
 ### Live badges
 
-The top of the page shows a green/red badge per source. A badge is green
-if a row for that source arrived within the last **60 seconds**
-(`LIVE_WINDOW_S` in `dashboard/db.py`). All-red means the collectors are
-down or the run finished minutes ago — that is normal after `run_all.sh`
-finishes, except gNMI which is often the freshest.
+The top of the page shows a green/red badge per source. A badge is green if
+a row for that source arrived within `LIVE_WINDOW_S` seconds — default
+**86,400 s (24 h)**, deliberately long so a finished run keeps its badges
+green for a day instead of going all-red the moment `run_all.sh` exits. Set
+`LIVE_WINDOW_S=60` for strict liveness. The badge prints the window it is
+actually counting (`rows/24h` by default), so the number and the unit agree.
+All-red means the last row is older than the window.
 
 ### HTTP API
 
@@ -490,7 +492,7 @@ finishes, except gNMI which is often the freshest.
 |---|---|
 | `/` | Dashboard HTML |
 | `/api/<source>` | `{columns: [...], rows: [[...]]}` — last 200 rows for `int`, `sflow`, `netflow`, `ipfix`, `snmp`, `gnmi` (oldest → newest; 404 for unknown source; empty on missing table) |
-| `/api/status` | `{<source>: {live, rows_60s, last_ts}}` for all 6 sources |
+| `/api/status` | `{<source>: {live, rows_window, window_s, last_ts}}` for all 6 sources |
 
 ```bash
 curl -s http://localhost:5000/api/status

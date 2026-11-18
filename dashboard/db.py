@@ -22,6 +22,9 @@ SOURCES = {
     "gnmi": "gnmi_stats",
 }
 
+# Default is 24 h on purpose: a finished run keeps its badges green for a day
+# instead of going all-red the moment run_all.sh exits. Export LIVE_WINDOW_S=60
+# for strict liveness. The API reports the window so the UI labels it honestly.
 LIVE_WINDOW_S = int(os.environ.get("LIVE_WINDOW_S", "86400"))
 
 
@@ -57,14 +60,20 @@ def last_rows(table, n=200):
 
 
 def status():
-    """Per-source {live, rows_60s, last_ts}. 'live' = a row arrived recently."""
+    """Per-source {live, rows_window, window_s, last_ts}.
+
+    'live' and 'rows_window' use the same LIVE_WINDOW_S window (default
+    86400 s = 24 h). window_s is returned so the UI labels the count with the
+    window actually used instead of assuming 60 s.
+    """
     now = int(time.time())
     out = {}
     try:
         conn = get_conn()
         for name, table in SOURCES.items():
             if not table_exists(conn, table):
-                out[name] = {"live": False, "rows_60s": 0,
+                out[name] = {"live": False, "rows_window": 0,
+                             "window_s": LIVE_WINDOW_S,
                              "last_ts": None, "error": "no table"}
                 continue
             last = conn.execute("SELECT MAX(ts) FROM %s" % table).fetchone()[0]
@@ -73,12 +82,14 @@ def status():
                 (now - LIVE_WINDOW_S,)).fetchone()[0]
             out[name] = {
                 "live": last is not None and (now - last) <= LIVE_WINDOW_S,
-                "rows_60s": n,
+                "rows_window": n,
+                "window_s": LIVE_WINDOW_S,
                 "last_ts": last,
             }
         conn.close()
     except Exception as exc:
         for name in SOURCES:
-            out[name] = {"live": False, "rows_60s": 0,
+            out[name] = {"live": False, "rows_window": 0,
+                         "window_s": LIVE_WINDOW_S,
                          "last_ts": None, "error": str(exc)}
     return out

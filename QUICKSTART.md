@@ -113,8 +113,9 @@ WSL2 forwards `localhost` to Windows automatically. **Click a tab to see anythin
 Known issue #1 below; the pane is hidden until you do.
 
 What a good run looks like per tab: charts drawn, tables populated, and a badge reading
-`live · N rows/60s` while that protocol's traffic is still flowing. Once the run has finished
-the badges correctly fall back to `offline · last <time>` — that is not an error.
+`live · N rows/24h` while that protocol's traffic is still flowing (the unit follows
+`LIVE_WINDOW_S`, which defaults to 24 h). Once the run has finished the badges fall back
+to `offline · last <time>` — that is not an error.
 
 ## 3. Run just one stage (when you're iterating)
 
@@ -143,7 +144,7 @@ for t in ('int_hops','sflow_samples','netflow_flows','ipfix_flows','snmp_stats',
     n, mx = c.execute('SELECT COUNT(*), MAX(ts) FROM '+t).fetchone()
     print('%-15s %-8d newest=%s' % (t, n, mx))
 "
-curl -s http://localhost:5000/api/status   # per-source live/rows_60s/last_ts as JSON
+curl -s http://localhost:5000/api/status   # per-source live/rows_window/window_s/last_ts as JSON
 ```
 
 Note that `MAX(ts)` prints in **UTC** while dashboard badges use your local time
@@ -199,7 +200,7 @@ the one-character fix. The other gNMI chart works.
 |---|---|---|
 | `mn: command not found`, `chdir(.../Network) failed` | you're in PowerShell/CMD/Git Bash, or the path's space split the command | run inside WSL; use the space-free `/tmp/nt` symlink (`ln -sfn "$PWD" /tmp/nt`) |
 | Blank dashboard at `localhost:5000` | Known issue #1 — no pane activated | click a tab |
-| All badges read `offline` | no traffic currently flowing; `LIVE_WINDOW_S` is 60 s | expected after a run finishes — re-run a stage to see `live` |
+| All badges read `offline` | no traffic currently flowing; `LIVE_WINDOW_S` defaults to 86400 s (24 h) | expected once the last row is older than the window — re-run a stage to see `live` |
 | Charts are empty boxes, Flask answers `200` | Chart.js is loaded from `cdn.jsdelivr.net` and you have no internet | give the machine internet, or vendor `chart.min.js` locally |
 | NetFlow/IPFIX rows arrive late (10–60 s) | softflowd flush timeout | expected; wait, then refresh |
 | Port 5000 already in use | an older dashboard is still running | `sudo pkill -f dashboard/app.py` |

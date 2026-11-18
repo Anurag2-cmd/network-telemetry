@@ -159,6 +159,16 @@
             return new Date(ts * 1000).toLocaleTimeString();
         }
 
+        // Turn a window in seconds into the unit shown in the badge, so a
+        // 24 h default reads "rows/24h" instead of the old hardcoded "60s".
+        function fmtWindow(sec) {
+            sec = sec || 0;
+            if (sec >= 604800 && sec % 86400 === 0) return (sec / 86400) + 'd';
+            if (sec >= 3600 && sec % 3600 === 0) return (sec / 3600) + 'h';
+            if (sec >= 60 && sec % 60 === 0) return (sec / 60) + 'm';
+            return sec + 's';
+        }
+
         function initTabs() {
             const wrap = document.getElementById('tabs');
             wrap.innerHTML = '';
@@ -245,10 +255,12 @@
                     });
                 });
             } else if (cfg.mode === 'gnmiIface') {
+                // Paths look like interfaces/interface[name=0]/state/counters/in-octets.
+                // Stop the capture at the closing bracket, so g is "0", not "0]".
                 const groups = [...new Set(rows.map(r => {
-                    const m = (r.path || '').match(/name=([^/]+)/);
-                    return m ? m[1] : '?';
-                }))];
+                    const m = (r.path || '').match(/name=([^\]]+)/);
+                    return m ? m[1] : null;
+                }).filter(g => g !== null))];
                 groups.forEach((g, i) => {
                     datasets.push({
                         label: 'iface ' + g,
@@ -458,7 +470,7 @@
                         dot.className = 'dot ' + (s.live ? 'live' : 'dead');
                         badge.className = 'badge ' + (s.live ? 'live' : 'dead');
                         badge.textContent = s.live
-                            ? ('live · ' + (s.rows_60s || 0) + ' rows/60s · ' + fmtTime(s.last_ts))
+                            ? ('live · ' + (s.rows_window || 0) + ' rows/' + fmtWindow(s.window_s) + ' · ' + fmtTime(s.last_ts))
                             : ('offline · last ' + fmtTime(s.last_ts));
                     }
                 })

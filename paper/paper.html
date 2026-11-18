@@ -111,7 +111,7 @@ K.R. Mangalam University, Gurugram, India</p>
 
 <h3>3.4 Dashboard</h3>
 
-<p><i>dashboard/app.py</i> (Flask) serves one page with six tabs and two JSON endpoints: <i>/api/&lt;source&gt;</i> returns the most recent 200 rows of a table, and <i>/api/status</i> reports liveness — a source is marked live when a row has arrived within the last 60 seconds. The front end uses Chart.js, refreshes every 5 seconds, and shows a green/red badge per protocol (Figure 3). The dashboard is reachable from the Windows host browser at localhost:5000 while the collectors run in WSL.</p>
+<p><i>dashboard/app.py</i> (Flask) serves one page with six tabs and two JSON endpoints: <i>/api/&lt;source&gt;</i> returns the most recent 200 rows of a table, and <i>/api/status</i> reports liveness — a source is marked live when a row has arrived within the configured liveness window (86,400 s, i.e. 24 h, by default). The front end uses Chart.js, refreshes every 5 seconds, and shows a green/red badge per protocol (Figure 3). The dashboard is reachable from the Windows host browser at localhost:5000 while the collectors run in WSL.</p>
 
 <p class="fig"><img src="figs/dashboard.png" width="600"><br>
 <b>Fig. 3.</b> The unified dashboard: one tab per protocol, liveness badges and auto-refreshing charts fed by the shared database.</p>
