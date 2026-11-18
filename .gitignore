@@ -20,16 +20,9 @@ __pycache__/
 p4/int.json
 
 # ---------------------------------------------------------------------------
-# Generated paper artifacts (rebuild with paper/convert.ps1)
-# NOTE: the two paper/*.docx and paper/*.pdf files already tracked at HEAD are
-# not untracked by these rules; use `git rm --cached` if that is wanted.
-# paper/LATEST/ is deliberately NOT ignored: it is the deck's stated number
-# source (plan/FINAL_DECK_PLAN.md) and cannot be rebuilt from paper/paper.html.
+# Paper tree — kept locally, not published (2026-11-18)
 # ---------------------------------------------------------------------------
-paper/*.docx
-paper/*.pdf
-paper/~$*
-paper/figs/*_old.png
+paper/
 
 # ---------------------------------------------------------------------------
 # Generated presentations (rebuild with make_ppt.py)
@@ -75,6 +68,13 @@ desktop.ini
 report.md
 synopsis.md
 RUN_LOG.md
+GUIDE_FILES.md
+GUIDE_SIMPLE.md
+MVP_DEMO_VIDEO_SCRIPT.md
+PPT.txt
+PROJECT_DEEP_DIVE.md
+VIVA_QUESTIONS.md
+make_ppt.py
 
 # ---------------------------------------------------------------------------
 # Environment / secrets
